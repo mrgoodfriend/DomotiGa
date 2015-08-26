@@ -5,7 +5,7 @@
 ' Built-in JSON-RPC server.
 
 ' Development Status:
-' Finished
+' Implementing method for Thermostat
 
 ' DomotiGa - an open source home automation program.
 ' Copyright (C) Ron Klinkien, The Netherlands.
@@ -228,8 +228,6 @@ Public Function Connect() As Boolean
   ' ### Event methods ###
   hRpcFunc = New JsonRpcFunction("event.list")
   hJSONRPC.Register(hRpcFunc)
-  hRpcFunc = New JsonRpcFunction("event.set")
-  hJSONRPC.Register(hRpcFunc)
   hRpcFunc = New JsonRpcFunction("event.run")
   hJSONRPC.Register(hRpcFunc)
   hRpcFunc = New JsonRpcFunction("action.list")
@@ -239,8 +237,6 @@ Public Function Connect() As Boolean
   hRpcFunc = New JsonRpcFunction("condition.evaluate")
   hJSONRPC.Register(hRpcFunc)
   hRpcFunc = New JsonRpcFunction("scene.list")
-  hJSONRPC.Register(hRpcFunc)
-  hRpcFunc = New JsonRpcFunction("scene.get")
   hJSONRPC.Register(hRpcFunc)
   hRpcFunc = New JsonRpcFunction("scene.run")
   hJSONRPC.Register(hRpcFunc)
@@ -298,15 +294,41 @@ Public Function Connect() As Boolean
   hJSONRPC.Register(hRpcFunc)
 
   ' ### Thermostat methods ###
-  hRpcFunc = New JsonRpcFunction("thermostat.list")
+  
+  'original commented 
+  'hRpcFunc = New JsonRpcFunction("thermostat.derogateheating")
+  'hJSONRPC.Register(hRpcFunc)
+  'hRpcFunc = New JsonRpcFunction("thermostat.getderogateheating")
+  'hJSONRPC.Register(hRpcFunc)
+  
+  
+  ' thermostat from XMLRPC
+  hRpcFunc = New JsonRpcFunction("thermostat.listscenario")
+  'hRpcFunc.Help = ("list all scenarios.")
   hJSONRPC.Register(hRpcFunc)
-  hRpcFunc = New JsonRpcFunction("thermostat.get")
+  hRpcFunc = New JsonRpcFunction("thermostat.getscenario")
+  'hRpcFunc.Help = ("get active scenario.")
   hJSONRPC.Register(hRpcFunc)
-  hRpcFunc = New JsonRpcFunction("thermostat.set")
+  hRpcFunc = New JsonRpcFunction("thermostat.getscenarios")
+  'hRpcFunc.Help = ("get all scenarios and their heatings.")
+  hJSONRPC.Register(hRpcFunc)
+  hRpcFunc = New JsonRpcFunction("thermostat.getheating")
+  'hRpcFunc.Help = ("get heating with the id of one scenario.")
+  hJSONRPC.Register(hRpcFunc)
+  hRpcFunc = New JsonRpcFunction("thermostat.setscenario")
+  'hRpcFunc.Help = ("set thermostat scenario.")
+  hJSONRPC.Register(hRpcFunc)
+  hRpcFunc = New JsonRpcFunction("thermostat.createheating")
+  'hRpcFunc.Help = ("create heating.")
   hJSONRPC.Register(hRpcFunc)
   hRpcFunc = New JsonRpcFunction("thermostat.derogateheating")
+  'hRpcFunc.Help = ("change requested temperature for a heating.")
   hJSONRPC.Register(hRpcFunc)
   hRpcFunc = New JsonRpcFunction("thermostat.getderogateheating")
+  'hRpcFunc.Help = ("thermostat get derogate temperature for a heating.")
+  hJSONRPC.Register(hRpcFunc)
+  hRpcFunc = New JsonRpcFunction("thermostat.setsecondary")
+  'hRpcFunc.Help = ("thermostat set secondary state for a heating.")
   hJSONRPC.Register(hRpcFunc)
 
   ' ### Commander methods ###
@@ -578,8 +600,6 @@ Public Sub hJSONRPC_RemoteCall(sName As String, cData As JSONCollection)
       ' ### Event methods ###
     Case "event.list"
       Call_Event_List(cData)
-    Case "event.set"
-      Call_Event_Set(cData)
     Case "event.run"
       Call_Event_Run(cData)
     Case "action.list"
@@ -590,8 +610,6 @@ Public Sub hJSONRPC_RemoteCall(sName As String, cData As JSONCollection)
       Call_Condition_Evaluate(cData)
     Case "scene.list"
       Call_Scene_List(cData)
-    Case "scene.get"
-      Call_Scene_Get(cData)
     Case "scene.run"
       Call_Scene_Run(cData)
 
@@ -648,12 +666,31 @@ Public Sub hJSONRPC_RemoteCall(sName As String, cData As JSONCollection)
       Call_Calendar_Set(cData)
 
       ' ### Thermostat methods ###
-    Case "thermostat.list"
-      Call_Thermostat_List(cData)
+	  'original commented
+    'Case "thermostat.derogateheating"
+      'Call_Thermostat_DerogateHeating(cData)
+    'Case "thermostat.getderogateheating"
+      'Call_Thermostat_GetDerogateHeating(cData)
+  
+	  ' thermostat from XMLRPC
+    Case "thermostat.listscenario"
+      Call_Thermostat_ListScenarii(cData)
+    Case "thermostat.getscenario"
+      Call_Thermostat_GetScenario(cData)
+    Case "thermostat.getscenarios"
+      Call_Thermostat_GetScenarios(cData)
+    Case "thermostat.getheating"
+      Call_Thermostat_GetHeating(cData)
+    Case "thermostat.setscenario"
+      Call_Thermostat_SetScenario(cData)
     Case "thermostat.derogateheating"
       Call_Thermostat_DerogateHeating(cData)
     Case "thermostat.getderogateheating"
       Call_Thermostat_GetDerogateHeating(cData)
+    Case "thermostat.createheating"
+      Call_Thermostat_CreateHeating(cData)
+    Case "thermostat.setsecondary"
+      Call_Thermostat_SetSecondary(cData)
 
       ' ### Commander methods ###
     Case "cmdr.plcbus.txcommand"
@@ -933,15 +970,6 @@ Private Sub FilterFields(iType As Integer, aFields As String[], rResult As Objec
             sAttrName = sKey
           Endif
 
-          ' Skip certain fields
-          Select iType
-            Case Type_Data_DeviceValue
-              Select sAttrName
-                Case "id", "device_id"
-                  Continue
-              End Select
-          End Select
-
           aFields.Add(sAttrName)
         Next
 
@@ -1028,6 +1056,58 @@ Private Sub FilterFields(iType As Integer, aFields As String[], rResult As Objec
 End
 
 '~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+' Build up the ALL filter fields
+'~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+Private Sub BuildFilterFields(iType As Integer, rResult As Result, cMap As Collection, GetField As String[])
+
+  Dim bFound As Boolean
+  Dim hField As ResultField
+  Dim hsField, mField As String
+
+  GetField.Clear()
+
+  For Each hField In rResult.Fields
+
+    bFound = False
+    If InStr(hField.Name, ".") Then
+      hsField = Mid(hField.Name, RInStr(hField.Name, ".") + 1)
+    Else
+      hsField = hField.Name
+    Endif
+
+    For Each mField In cMap
+      If hsField = mField Then
+        GetField.Add(cMap.Key)
+
+        If iType = Type_Data_DeviceValue Then ' Devices - Also add valueX if we found rawvalueX
+          If InStr(cMap.Key, "rawvalue") = 1 Then
+            GetField.Add("value" & Mid(cMap.Key, 9))
+          Endif
+        Endif
+
+        bFound = True
+        Break
+      Endif
+    Next
+
+    If Not bFound Then
+      If iType = Type_Data_DeviceValue Then
+        If hsField = "id" Or If hsField = "device_id" Then
+          Continue
+        Endif
+      Endif
+
+      GetField.Add(hsField)
+    Endif
+  Next
+
+  If iType = Type_Data_Device Then ' For devices add the icon
+    GetField.Add("icon")
+  Endif
+
+End
+
+'~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 ' Method=api.version
 '~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 Private Sub Call_API_Version()
@@ -1089,6 +1169,7 @@ End
 Private Sub Call_DomotiGa_Get(cData As JSONCollection)
 
   Dim cValueOut As New JSONCollection
+  Dim sStr As String
   Dim lValue As Long
 
   If Not CheckParam(cData, ["command": ["datatype": "string", "valuelist": ["servertype", "pid", "uptime", "version"]]]) Then Return
@@ -1515,10 +1596,6 @@ Private Sub Call_Device_List(cData As JSONCollection)
     If cData["fields"].Count = 1 And If cData["fields"].Exist("ALL") Then
       cData["fields"] = New String[]
       cData["fields_values"] = New String[]
-    Else
-      If Not cData.Exist("fields_values") Then
-        cData["fields_values"] = New String[]
-      Endif
     Endif
   Endif
 
@@ -1963,6 +2040,7 @@ Private Sub Call_Event_List(cData As JSONCollection)
   Dim aValueAction As New Collection[]
   Dim rResult As Result
   Dim rResultAction As Result
+  Dim jCnt As Integer
   Dim MapField As New Collection
 
   ' Mapping of attribute names from SQL to JSON. Hopefully to be removed in the future
@@ -2009,22 +2087,6 @@ Private Sub Call_Event_List(cData As JSONCollection)
   Next
 
   SetReply(0, aValue)
-
-End
-
-
-'~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-' Method=event.set
-'~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-Private Sub Call_Event_Set(cData As JSONCollection)
-
-  If Not CheckParam(cData, ["event_id": ["datatype": "integer"], "enabled": ["datatype": "boolean"]]) Then Return
-
-  If Events.ChangeEventState(cData["event_id"], cData["enabled"]) Then
-    SetReply(0, True)
-  Else
-    SetReply(0, False)
-  Endif
 
 End
 
@@ -2574,87 +2636,234 @@ Private Sub Call_Calendar_Set(cData As JSONCollection)
 End
 
 '~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-' Method=thermostat.list
+' Method=thermostat.listscenario
 '~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-Private Sub Call_Thermostat_List(cData As JSONCollection)
 
-  Dim cValue As New Collection[]
-  Dim cScenario As New JSONCollection
-  Dim rResult As Result
-  Dim rResultHeating As Result
-  Dim MapField As New Collection
-  Dim aHeating As New Collection[]
-  Dim cHeating As New JSONCollection
-  Dim sCurrTemp, sReqTemp As String
-  Dim fTemp As Float
-  Dim bHeating As Boolean
+Private Sub Call_Thermostat_ListScenarii(sParams As Collection) 'ok le 15/12/2014
 
-  If Not CheckParam(cData, ["command": ["datatype": "string"]]) Then Return
-  If Not GetParamFields(cData) Then Return
+  Dim rResultScenarii As Result
+  Dim sString As New Collection
+  Dim sList As New Collection[]
+  Dim iCnt As Integer
 
-  Select cData["command"]
-    Case "scenarios", "scenarii"
-
-      rResult = Thermostat.GetScenariiList()
-
-      If rResult And If rResult.Available Then
-        For Each rResult
-          cScenario = New JSONCollection
-
-          If Not FilterFields(Type_Thermostat_Scenario, cData["fields"], rResult, MapField, cScenario) Then Return
-
-          If cData["fields"].Count > 0 Then
-            If cData["fields"].Find("heating") >= 0 Then
-
-              bHeating = True
-            Else
-              bHeating = False
-            Endif
-          Else
-            bHeating = True
-          Endif
-
-          If bHeating Then
-            ' Add Heating for the scenario
-            aHeating = New Collection[]
-            rResultHeating = Main.hDB.Exec("SELECT * FROM `thermostat_schedule` s, `thermostat_heating` h WHERE s.heating_id=h.id AND s.scenario_id=&1", rResult!id)
-            If rResultHeating And If rResultHeating.Available Then
-              For Each rResultHeating
-                cHeating = New JSONCollection
-                sCurrTemp = Devices.GetCurrentValueForDevice(rResultHeating!sensor, 1)
-                fTemp = Thermostat.GetDerogateHeating(rResultHeating!id)
-                If fTemp = Thermostat.NO_TEMP Then fTemp = Thermostat.GetRequestedTempForHeating(rResultHeating!scenario_id, rResultHeating!id)
-                sReqTemp = fTemp
-
-                cHeating.Add(rResultHeating!id, "heating_id")
-                cHeating.Add(rResultHeating!name, "name")
-                cHeating.Add(sCurrTemp, "temp_cur")
-                cHeating.Add(sReqTemp, "temp_req")
-
-                aHeating.Add(cHeating)
-              Next
-
-            Endif
-
-            cScenario.Add(aHeating, "heating") 
-          Endif
-
-          cValue.Add(cScenario)
-        Next
-      Endif
-    Default
-      SetReply(-32602, Null, "params 'mode' has unknown value '" & cData["command"] & "'")
-      Return
-  End Select
-
-  SetReply(0, cValue)
+  Try rResultScenarii = Main.hDB.Exec("SELECT * FROM thermostat_scenarii")
+  If rResultScenarii Then
+    For Each rResultScenarii
+    iCnt = iCnt + 1
+      'sString[iCnt] = rResultScenarii!id & ";;" & rResultScenarii!name & ";;" & rResultScenarii!description
+      sString.Add(rResultScenarii!id, "id")
+      sString.Add(rResultScenarii!name, "name")
+      sString.Add(rResultScenarii!description, "description")
+      sList.Add(sString.Copy()) 
+    Next
+    SetReply(0, sList)
+  Endif
 
 End
 
+' return the heatings from the scenario with param = id scenario
+Private Sub Call_Thermostat_GetHeating(sParams As Collection) 'ok le 15/12/2014
+
+  Dim rResultHeatings As Result
+  Dim sString As New Collection
+  Dim sList As New Collection[]
+  Dim iCnt As Integer
+  Dim sCurrTemp, sReqTemp As String
+  Dim fTemp As Float
+
+  ' param 0 = scenario id
+  rResultHeatings = Main.hDB.Exec("SELECT * FROM thermostat_schedule, thermostat_heating where heating=id and scenario=&1", Val(sParams["scenario_id"]))
+  If rResultHeatings.Count > 0 Then
+    iCnt = 0
+    For Each rResultHeatings
+      Inc iCnt
+      sCurrTemp = Devices.GetCurrentValueForDevice(rResultHeatings!sensor, 1)
+      fTemp = Thermostat.GetDerogateHeating(rResultHeatings!id)
+      If fTemp = Thermostat.NO_TEMP Then fTemp = Thermostat.GetRequestedTempForHeating(rResultHeatings!scenario, rResultHeatings!id)
+      sReqTemp = fTemp
+      'sString[iCnt] = rResultHeatings!id & ";;" & rResultHeatings!name & ";;" & sCurrTemp & ";;" & sReqTemp
+      sString.Add(rResultHeatings!id, "id")
+      sString.Add(rResultHeatings!name, "name")
+      sString.Add(sCurrTemp, "current_temp")
+      sString.Add(sReqTemp, "request_temp")
+      
+      sList.Add(sString.Copy()) 
+      
+      'sList.Add(rResultHeatings!name, sString[iCnt], XmlRpc.xString)
+    Next
+  Endif
+ SetReply(0, sList)
+
+End
+
+Private Sub Call_Thermostat_GetScenario(sParams As Collection) 'ok le 15/12/2014
+
+  Dim rResultScenarii, rResultHeatings As Result
+  Dim sString As New Collection
+  Dim sList As New Collection[]
+  Dim iCnt As Integer
+  Dim sCurrTemp, sReqTemp As String
+  Dim fTemp As Float
+
+  Try rResultScenarii = Main.hDB.Exec("SELECT * FROM thermostat_scenarii where name=&1", Main.GetGlobalVar("Thermostat_Mode"))
+  If rResultScenarii.Count > 0 Then
+    iCnt = 1
+    'sString[iCnt] = rResultScenarii!id & ";;" & rResultScenarii!name & ";;" & rResultScenarii!description
+    sString.Add(rResultScenarii!id, "scenario_id")
+    sString.Add(rResultScenarii!name, "scenario_name")
+    sString.Add(rResultScenarii!description, "scenario_description")
+    'sList.Add(sString.Copy()) 
+   ' sList.Add(rResultScenarii!name, sString[iCnt], XmlRpc.xString)
+
+    rResultHeatings = Main.hDB.Exec("SELECT * FROM thermostat_schedule, thermostat_heating where heating_id=id and scenario_id=&1 ORDER BY name", rResultScenarii!id)
+    For Each rResultHeatings
+      Inc iCnt
+      sCurrTemp = Devices.GetCurrentValueForDevice(rResultHeatings!sensor, 1)
+      fTemp = Thermostat.GetDerogateHeating(rResultHeatings!id)
+      If fTemp = Thermostat.NO_TEMP Then fTemp = Thermostat.GetRequestedTempForHeating(rResultHeatings!scenario_id, rResultHeatings!id)
+      sReqTemp = fTemp
+      'sString[iCnt] = rResultHeatings!id & ";;" & rResultHeatings!name & ";;" & sCurrTemp & ";;" & sReqTemp
+      sString.Add(rResultHeatings!id, "heating_id")
+      sString.Add(rResultHeatings!name, "heating_name")
+      sString.Add(sCurrTemp, "current_temp")
+      sString.Add(sReqTemp, "request_temp")
+      
+      sList.Add(sString.Copy()) 
+      
+     ' sList.Add(rResultHeatings!name, sString[iCnt], XmlRpc.xString)
+    Next
+  Endif
+  SetReply(0, sString)
+
+End
+
+' return all the scenarios and the heatings
+Private Sub Call_Thermostat_GetScenarios(sParams As Collection) 'ok le 15/12/2014
+
+  Dim rResultScenarii, rResultHeatings As Result
+  Dim sString, sString2 As New Collection
+  Dim sList As New Collection[]
+  Dim iCnt As Integer
+  Dim sCurrTemp, sReqTemp As String
+  Dim fTemp As Float
+
+  rResultScenarii = Main.hDB.Exec("SELECT * FROM thermostat_scenarii")
+  If rResultScenarii.Count > 0 Then
+  iCnt = 0
+  For Each rResultScenarii
+  iCnt = iCnt + 1
+  'sString[iCnt] = rResultScenarii!id & ";;" & rResultScenarii!name & ";;" & rResultScenarii!description
+  sString.Add(rResultScenarii!id, "scenario_id")
+  sString.Add(rResultScenarii!name, "scenario_name")
+  sString.Add(rResultScenarii!description, "scenario_description")
+ ' sList.Add(sString.Copy()) 
+  'sList.Add("", sString[iCnt], XmlRpc.xString)
+
+  rResultHeatings = Main.hDB.Exec("SELECT * FROM thermostat_schedule, thermostat_heating where heating=id and scenario=&1", rResultScenarii!id)
+    For Each rResultHeatings
+      Inc iCnt
+      sCurrTemp = Devices.GetCurrentValueForDevice(rResultHeatings!sensor, 1)
+      fTemp = Thermostat.GetDerogateHeating(rResultHeatings!id)
+      If fTemp = Thermostat.NO_TEMP Then fTemp = Thermostat.GetRequestedTempForHeating(rResultHeatings!scenario, rResultHeatings!id)
+      sReqTemp = fTemp
+      'sString[iCnt] = rResultHeatings!id & ";;" & rResultHeatings!name & ";;" & sCurrTemp & ";;" & sReqTemp
+      sString.Add(rResultHeatings!id, "heating_id")
+      sString.Add(rResultHeatings!name, "heating_name")
+      sString.Add(sCurrTemp, "current_temp")
+      sString.Add(sReqTemp, "request_temp")
+      
+      sList.Add(sString.Copy()) 
+      
+      'sList.Add("", sString[iCnt], XmlRpc.xString)
+    Next
+  Next
+  Endif
+  SetReply(0, sList)
+
+End
+
+Private Sub Call_Thermostat_SetScenario(sParams As Collection) 'ok le 15 / 12 / 2014
+
+  ' param0 must be the scenario name
+  If sParams.Count = 1 Then
+    Try Main.SetGlobalVar("Thermostat_Mode", sParams["scenario_name"])
+    Thermostat.DeleteAllDerogateHeating()
+    SetReply(0, True)
+  Else
+    SetReply(0, False)
+  Endif
+
+End
+
+
+
+Private Sub Call_Thermostat_CreateHeating(sParams As Collection)
+
+  Dim rResultUpdate, rResult As Result
+  Dim ok As Float
+  Dim sSql As String
+  Dim heatingId As Integer
+
+  Try rResult = Main.hDB.Exec("SELECT * FROM thermostat_heating ORDER BY name")
+
+  For Each rResult
+    If sParams["heating_name"] = rResult!name Then
+      Inc ok
+      heatingId = rResult!id
+    Endif
+  Next
+
+  If ok = 0 Then
+    sSql = "INSERT INTO thermostat_heating SET name = &1, sensor = &2, device= &3, deviceInverted=&4, deviceLatency=&5, regulator=&6, regulatorInverted=&7, description=&8, deviceOffsetTop=&9, regulatorOffsetTop=&{10}, deviceOffsetBottom=&{11}, regulatorOffsetBottom=&{12}"
+    If sParams.Count = 12 Then
+      Try rResultUpdate = Main.hDB.Exec(sSql, sParams["heating_name"], sParams["heating_sensor"], sParams["heating_device"], sParams["heating_deviceInverted"], sParams["heating_deviceLatency"], sParams["heating_regulator"], sParams["heating_regulatorInverted"], sParams["heating_description"], sParams["heating_deviceOffsetTop"], sParams["regulator_OffsetTop"], sParams["heating_deviceOffsetBottom"], sParams["heating_regulatorOffsetBottom"])
+      If Error Then
+        Main.WriteDebugLog(LogLabel & "ERROR: '" & Error.Text & "' at '" & Error.Where & "' when setting device value!")
+        SetReply(0, False)
+      Else
+        SetReply(0, True)
+      Endif
+    Else
+      SetReply(0, False)
+    Endif
+  Else
+    sSql = "UPDATE thermostat_heating SET name = &1, sensor = &2, device= &3, deviceInverted=&4, deviceLatency=&5, regulator=&6, regulatorInverted=&7, description=&8, deviceOffsetTop=&9, regulatorOffsetTop=&{10}, deviceOffsetBottom=&{11}, regulatorOffsetBottom=&{12} WHERE id = &{13}"
+    If sParams.Count = 12 Then
+      Try rResultUpdate = Main.hDB.Exec(sSql, sParams["heating_name"], sParams["heating_sensor"], sParams["heating_device"], sParams["heating_deviceInverted"], sParams["heating_deviceLatency"], sParams["heating_regulator"], sParams["heating_regulatorInverted"], sParams["heating_description"], sParams["heating_deviceOffsetTop"], sParams["regulator_OffsetTop"], sParams["heating_deviceOffsetBottom"], sParams["heating_regulatorOffsetBottom"], heatingId)
+      If Error Then
+        Main.WriteDebugLog(LogLabel & "ERROR: '" & Error.Text & "' at '" & Error.Where & "' when setting device value!")
+        SetReply(0, False)
+      Else
+        SetReply(0, True)
+      Endif
+    Else
+      SetReply(0, False)
+    Endif
+  Endif
+
+End
+
+Private Sub Call_Thermostat_SetSecondary(sParams As Collection)
+
+  Dim iHeat As Integer
+  Dim bIsSeconday As Boolean
+
+  iHeat = CInt(sParams["heating_id"])
+  bIsSeconday = CBool(sParams["is_secondary"])
+
+  SetReply(0, Thermostat.SetIsSecondary(iHeat, bIsSeconday))
+End
+
+
+
+
+
+
+'Already implemented
 '~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 ' Method=thermostat.derogateheating
 '~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-Private Sub Call_Thermostat_DerogateHeating(cData As JSONCollection)
+Private Sub Call_Thermostat_DerogateHeating(cData As Collection)
 
   Dim iScenarioId As Integer
   Dim iHeatingId As Integer
@@ -2720,10 +2929,11 @@ Catch
 
 End
 
+'Already implemented
 '~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 ' Method=thermostat.getderogateheating
 '~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-Private Sub Call_Thermostat_GetDerogateHeating(cData As JSONCollection)
+Private Sub Call_Thermostat_GetDerogateHeating(cData As Collection)
 
   Dim iHeatingId As Integer = CInt(cData["heating_id"])
   Dim fDerVal As Float = Thermostat.GetDerogateHeating(iHeatingId)
@@ -2731,7 +2941,7 @@ Private Sub Call_Thermostat_GetDerogateHeating(cData As JSONCollection)
   SetReply(0, fDerVal)
 
 Catch
-  SetReply(0, Null)
+  SetReply(-1, Null)
 
 End
 
@@ -3179,11 +3389,11 @@ Private Sub Call_Tools_RFXCom_Set(cData As JSONCollection)
         Case "getversion"
           hRFXCom.GetVersion()
         Case "simulate"
-          If Not CheckParam(cData, ["command": ["datatype": "string"]]) Then Return
+          If Not CheckParam(["command": ["datatype": "string"]]) Then Return
           hRFXCom.bSimulate = True
           hRFXCom.Simulate(cData["command"])
         Case "protocolsetup"
-          If Not CheckParam(cData, ["command": ["datatype": "string"]]) Then Return
+          If Not CheckParam(["command": ["datatype": "string"]]) Then Return
           Select cData["command"]
             Case "enableall"
               hRFXCom.ProtocolSetup("ALL")
